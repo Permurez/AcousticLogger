@@ -77,7 +77,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         val previewView = findViewById<PreviewView>(R.id.cameraPreview)
-        coreController = CoreController(this, this, previewView)
+        coreController = CoreController(this, this, previewView) { message ->
+            runOnUiThread { updateStatus(message) }
+        }
         statusText = findViewById(R.id.statusText)
         startButton = findViewById(R.id.startButton)
         stopButton = findViewById(R.id.stopButton)

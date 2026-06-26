@@ -8,28 +8,30 @@ import kotlin.math.min
 object AcousticAnalyzer {
 
     private val OCTAVE_BANDS_HZ = intArrayOf(125, 250, 500, 1000, 2000, 4000)
+    private const val IMPULSE_SEARCH_SEC = 6
+    private const val DECAY_ANALYSIS_SEC = 4
 
     fun analyze(audioData: List<AudioBufferEntry>, roomVolumeM3: Float): AcousticReport {
         val signal = flattenAudio(audioData)
         if (signal.isEmpty()) {
-            return AcousticReport(
-                rt60BroadbandSec = 0.0,
-                rt60ByBandHz = emptyMap(),
-                estimatedVolumeM3 = roomVolumeM3,
-                sabineAverageAbsorption = 0.0,
-                edcDropDb = 0.0,
-            )
+            return emptyReport(roomVolumeM3)
         }
 
-        val impulseIndex = findImpulseIndex(signal)
-        val edc = schroederEdc(signal, impulseIndex)
+        val searchLimit = min(signal.size, AudioTelemetry.SAMPLE_RATE_HZ * IMPULSE_SEARCH_SEC)
+        val impulseIndex = findImpulseIndex(signal, searchLimit)
+        val decayEnd = min(signal.size, impulseIndex + AudioTelemetry.SAMPLE_RATE_HZ * DECAY_ANALYSIS_SEC)
+        if (impulseIndex >= decayEnd) {
+            return emptyReport(roomVolumeM3)
+        }
+
+        val decaySegment = signal.copyOfRange(impulseIndex, decayEnd)
+        val edc = schroederEdc(decaySegment, 0)
         val rt60Broadband = estimateRt60(edc, AudioTelemetry.SAMPLE_RATE_HZ)
         val edcDropDb = computeEdcDropDb(edc)
 
         val rt60ByBand = OCTAVE_BANDS_HZ.associateWith { bandHz ->
-            val filtered = bandPass(signal, bandHz)
-            val bandImpulse = findImpulseIndex(filtered)
-            val bandEdc = schroederEdc(filtered, bandImpulse)
+            val filtered = bandPass(decaySegment, bandHz)
+            val bandEdc = schroederEdc(filtered, 0)
             estimateRt60(bandEdc, AudioTelemetry.SAMPLE_RATE_HZ)
         }
 
@@ -48,6 +50,14 @@ object AcousticAnalyzer {
         )
     }
 
+    private fun emptyReport(roomVolumeM3: Float) = AcousticReport(
+        rt60BroadbandSec = 0.0,
+        rt60ByBandHz = emptyMap(),
+        estimatedVolumeM3 = roomVolumeM3,
+        sabineAverageAbsorption = 0.0,
+        edcDropDb = 0.0,
+    )
+
     private fun flattenAudio(entries: List<AudioBufferEntry>): FloatArray {
         val totalSamples = entries.sumOf { it.samples.size }
         if (totalSamples == 0) return FloatArray(0)
@@ -62,8 +72,7 @@ object AcousticAnalyzer {
         return output
     }
 
-    private fun findImpulseIndex(signal: FloatArray): Int {
-        val searchLimit = min(signal.size, AudioTelemetry.SAMPLE_RATE_HZ * 4)
+    private fun findImpulseIndex(signal: FloatArray, searchLimit: Int): Int {
         var maxIndex = 0
         var maxValue = 0f
         for (i in 0 until searchLimit) {
@@ -124,14 +133,16 @@ object AcousticAnalyzer {
     }
 
     private fun bandPass(signal: FloatArray, centerHz: Int): FloatArray {
-        val windowSize = max(3, (AudioTelemetry.SAMPLE_RATE_HZ / centerHz))
+        val windowSize = max(3, AudioTelemetry.SAMPLE_RATE_HZ / centerHz / 4)
         val output = FloatArray(signal.size)
         val halfWindow = windowSize / 2
 
         for (i in signal.indices) {
             var sum = 0f
             var count = 0
-            for (j in max(0, i - halfWindow)..min(signal.lastIndex, i + halfWindow)) {
+            val start = max(0, i - halfWindow)
+            val end = min(signal.lastIndex, i + halfWindow)
+            for (j in start..end) {
                 val phase = 2.0 * Math.PI * centerHz * (j - i).toDouble() / AudioTelemetry.SAMPLE_RATE_HZ
                 sum += signal[j] * kotlin.math.sin(phase).toFloat()
                 count++

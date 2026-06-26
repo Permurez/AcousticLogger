@@ -23,6 +23,7 @@ class CoreController(
     context: Context,
     lifecycleOwner: LifecycleOwner,
     previewView: PreviewView,
+    private val onProgress: (String) -> Unit = {},
 ) {
 
     private val appContext = context.applicationContext
@@ -45,11 +46,17 @@ class CoreController(
             val imuStart = async(Dispatchers.Default) { imuTelemetry.start(scope) }
             val audioStart = async(Dispatchers.Default) { audioTelemetry.start(scope) }
             val cameraStart = async(Dispatchers.Main) { cameraTelemetry.start(scope) }
+            val impulseStart = async(Dispatchers.IO) { AcousticImpulsePlayer.playImpulse(appContext) }
             imuStart.await()
             audioStart.await()
             cameraStart.await()
+            impulseStart.await()
         }
         recording.set(true)
+    }
+
+    private fun reportProgress(message: String) {
+        onProgress(message)
     }
 
     suspend fun stopRecordingAndExport(): Result<SessionExportResult> = withContext(Dispatchers.IO) {
@@ -58,6 +65,7 @@ class CoreController(
         }
 
         runCatching {
+            reportProgress("Zatrzymywanie sensorów…")
             coroutineScope {
                 val audioStop = async(Dispatchers.Default) { audioTelemetry.stop() }
                 val imuStop = async(Dispatchers.Default) { imuTelemetry.stop() }
@@ -72,10 +80,14 @@ class CoreController(
             val imuData = imuTelemetry.drainBuffer()
             val cameraFrames = cameraTelemetry.drainBuffer()
 
+            reportProgress("Budowa modelu 3D… (~5–15 s)")
             val roomModel = RoomModelBuilder.build(cameraFrames)
             val materials = MaterialAbsorptionEstimator.estimate(cameraFrames)
+
+            reportProgress("Analiza akustyczna…")
             val acousticReport = AcousticAnalyzer.analyze(audioData, roomModel.volumeM3)
 
+            reportProgress("Zapis plików…")
             val sessionDir = createSessionDirectory()
             WavExporter.export(audioData, File(sessionDir, "recording.wav"))
             WavExporter.exportChunkIndex(audioData, File(sessionDir, "audio_chunks.csv"))

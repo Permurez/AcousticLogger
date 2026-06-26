@@ -58,9 +58,9 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ## Jak używać
 
 1. Naciśnij **START**.
-2. Przez 15–30 s powoli obracaj telefon — skieruj kamerę na ściany, podłogę i sufit.
-3. Wykonaj **głośny klask** (impuls do pomiaru RT60).
-4. Naciśnij **STOP**.
+2. Po ~1,5 s aplikacja ** sama odtworzy sygnał testowy** z głośnika (nie musisz klaskać).
+3. Przez 15–30 s powoli obracaj telefon — skieruj kamerę na ściany, podłogę i sufit.
+4. Naciśnij **STOP** i poczekaj 5–20 s (nie zamykaj aplikacji).
 5. Przeczytaj **ekran wyników**; pliki sesji trafią do:
 
 ```

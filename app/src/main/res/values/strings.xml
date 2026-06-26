@@ -1,12 +1,12 @@
 <resources>
     <string name="app_name">AcousticLogger</string>
     <string name="app_title">Skan akustyczny pomieszczenia</string>
-    <string name="scan_hint">Podczas nagrywania powoli obracaj telefon i skieruj kamerę na ściany, podłogę i sufit. Wykonaj głośny klask (impuls akustyczny).</string>
+    <string name="scan_hint">Po START aplikacja sama odtworzy krótki sygnał testowy z głośnika (~1,5 s). Powoli obracaj telefon i skieruj kamerę na ściany, podłogę i sufit przez ok. 20 s.</string>
     <string name="action_start">START</string>
     <string name="action_stop">STOP</string>
     <string name="status_idle">Gotowy do skanowania pomieszczenia</string>
-    <string name="status_recording">Skanowanie: kamera + audio + orientacja…</string>
-    <string name="status_saving">Budowa modelu 3D i analiza akustyczna…</string>
+    <string name="status_recording">Skanowanie… sygnał akustyczny za chwilę z głośnika</string>
+    <string name="status_saving">Przetwarzanie — nie zamykaj aplikacji (5–20 s)…</string>
     <string name="status_saved">Zapisano sesję pomiarową</string>
     <string name="status_error">Błąd: %1$s</string>
     <string name="status_permissions_required">Wymagane uprawnienia aplikacji</string>
