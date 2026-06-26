@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.widget.TextView
 import android.widget.Toast
@@ -25,7 +26,7 @@ class ResultsActivity : AppCompatActivity() {
             insets
         }
 
-        val results = intent.getSerializableExtra(EXTRA_RESULTS, SessionResults::class.java)
+        val results = readResultsFromIntent()
         if (results == null) {
             Toast.makeText(this, R.string.results_missing_data, Toast.LENGTH_LONG).show()
             finish()
@@ -38,6 +39,15 @@ class ResultsActivity : AppCompatActivity() {
             copyPathToClipboard(results.sessionDirPath)
         }
         findViewById<MaterialButton>(R.id.newScanButton).setOnClickListener { finish() }
+    }
+
+    private fun readResultsFromIntent(): SessionResults? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getSerializableExtra(EXTRA_RESULTS, SessionResults::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getSerializableExtra(EXTRA_RESULTS) as? SessionResults
+        }
     }
 
     private fun bindResults(results: SessionResults) {

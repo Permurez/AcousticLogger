@@ -20,6 +20,8 @@ class AudioTelemetry(private val context: Context) {
     companion object {
         const val SAMPLE_RATE_HZ = 48_000
         private const val READ_SAMPLES = 1024
+        private const val MAX_BUFFER_SECONDS = 60
+        private val MAX_BUFFER_CHUNKS = (MAX_BUFFER_SECONDS * SAMPLE_RATE_HZ / READ_SAMPLES) + 1
     }
 
     private val buffer = Collections.synchronizedList(mutableListOf<AudioBufferEntry>())
@@ -68,8 +70,15 @@ class AudioTelemetry(private val context: Context) {
                     val timestampNs = System.nanoTime()
                     val samples = readBuffer.copyOf(readCount)
                     buffer.add(AudioBufferEntry(timestampNs, samples))
+                    trimBufferIfNeeded()
                 }
             }
+        }
+    }
+
+    private fun trimBufferIfNeeded() {
+        while (buffer.size > MAX_BUFFER_CHUNKS) {
+            buffer.removeAt(0)
         }
     }
 

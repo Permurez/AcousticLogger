@@ -8,14 +8,25 @@ object RoomModelBuilder {
 
     private const val HORIZONTAL_FOV_DEG = 68f
     private const val VOXEL_SIZE_M = 0.15f
+    private const val MAX_FRAMES_FOR_MODEL = 80
+    private const val GRID_CELL_COUNT = 24 * 18
+
+    private fun subsampleFrames(frames: List<CameraFrameEntry>, maxFrames: Int): List<CameraFrameEntry> {
+        if (frames.size <= maxFrames) return frames
+        val step = frames.size.toFloat() / maxFrames
+        return List(maxFrames) { index ->
+            frames[(index * step).toInt().coerceAtMost(frames.lastIndex)]
+        }
+    }
 
     fun build(frames: List<CameraFrameEntry>): RoomModel {
         if (frames.isEmpty()) {
             return RoomModel(emptyList(), 0f, 0f, 0f, 0f)
         }
 
-        val rawPoints = ArrayList<Point3D>()
-        for (frame in frames) {
+        val sampledFrames = subsampleFrames(frames, MAX_FRAMES_FOR_MODEL)
+        val rawPoints = ArrayList<Point3D>(sampledFrames.size * GRID_CELL_COUNT)
+        for (frame in sampledFrames) {
             rawPoints.addAll(projectFrame(frame))
         }
 
@@ -167,9 +178,9 @@ object RoomModelBuilder {
         var minX = Float.MAX_VALUE
         var minY = Float.MAX_VALUE
         var minZ = Float.MAX_VALUE
-        var maxX = Float.MIN_VALUE
-        var maxY = Float.MIN_VALUE
-        var maxZ = Float.MIN_VALUE
+        var maxX = -Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        var maxZ = -Float.MAX_VALUE
         points.forEach { point ->
             minX = minOf(minX, point.x)
             minY = minOf(minY, point.y)

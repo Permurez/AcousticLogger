@@ -206,7 +206,9 @@ class MainActivity : AppCompatActivity() {
                     startButton.isEnabled = true
                     stopButton.isEnabled = false
                     updateStatus(getString(R.string.status_saved))
-                    startActivity(ResultsActivity.createIntent(this@MainActivity, result.results))
+                    runOnUiThread {
+                        startActivity(ResultsActivity.createIntent(this@MainActivity, result.results))
+                    }
                 }
                 .onFailure { error ->
                     startButton.isEnabled = true

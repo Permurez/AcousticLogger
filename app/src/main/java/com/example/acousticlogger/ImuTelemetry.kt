@@ -40,7 +40,12 @@ class ImuTelemetry(context: Context) : SensorEventListener {
         pollJob = scope.launch(Dispatchers.Default) {
             while (isActive && running.get()) {
                 if (!paused.get()) {
-                    latestEntry?.let { buffer.add(it) }
+                    latestEntry?.let {
+                        buffer.add(it)
+                        while (buffer.size > MAX_BUFFER_ENTRIES) {
+                            buffer.removeAt(0)
+                        }
+                    }
                 }
                 delay(SAMPLE_INTERVAL_MS)
             }
@@ -98,6 +103,7 @@ class ImuTelemetry(context: Context) : SensorEventListener {
     }
 
     companion object {
-        private const val SAMPLE_INTERVAL_MS = 16L
+        private const val SAMPLE_INTERVAL_MS = 50L
+        private const val MAX_BUFFER_ENTRIES = 1200
     }
 }

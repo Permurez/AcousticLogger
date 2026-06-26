@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">AcousticLogger</string>
     <string name="app_title">Skan akustyczny pomieszczenia</string>
-    <string name="scan_hint">Po START aplikacja sama odtworzy krótki sygnał testowy z głośnika (~1,5 s). Powoli obracaj telefon i skieruj kamerę na ściany, podłogę i sufit przez ok. 20 s.</string>
+    <string name="scan_hint">Po START aplikacja sama odtworzy sygnał z głośnika (~1,5 s). Skanuj ok. 20–30 s, potem STOP. Nie zamykaj aplikacji podczas przetwarzania.</string>
     <string name="action_start">START</string>
     <string name="action_stop">STOP</string>
     <string name="status_idle">Gotowy do skanowania pomieszczenia</string>

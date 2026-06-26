@@ -12,19 +12,17 @@ object AcousticAnalyzer {
     private const val DECAY_ANALYSIS_SEC = 4
 
     fun analyze(audioData: List<AudioBufferEntry>, roomVolumeM3: Float): AcousticReport {
-        val signal = flattenAudio(audioData)
-        if (signal.isEmpty()) {
+        if (audioData.isEmpty()) {
             return emptyReport(roomVolumeM3)
         }
 
-        val searchLimit = min(signal.size, AudioTelemetry.SAMPLE_RATE_HZ * IMPULSE_SEARCH_SEC)
-        val impulseIndex = findImpulseIndex(signal, searchLimit)
-        val decayEnd = min(signal.size, impulseIndex + AudioTelemetry.SAMPLE_RATE_HZ * DECAY_ANALYSIS_SEC)
-        if (impulseIndex >= decayEnd) {
+        val sortedChunks = audioData.sortedBy { it.timestampNs }
+        val impulseChunkIndex = findImpulseChunkIndex(sortedChunks)
+        val decaySegment = extractDecaySegment(sortedChunks, impulseChunkIndex)
+        if (decaySegment.isEmpty()) {
             return emptyReport(roomVolumeM3)
         }
 
-        val decaySegment = signal.copyOfRange(impulseIndex, decayEnd)
         val edc = schroederEdc(decaySegment, 0)
         val rt60Broadband = estimateRt60(edc, AudioTelemetry.SAMPLE_RATE_HZ)
         val edcDropDb = computeEdcDropDb(edc)
@@ -58,31 +56,43 @@ object AcousticAnalyzer {
         edcDropDb = 0.0,
     )
 
-    private fun flattenAudio(entries: List<AudioBufferEntry>): FloatArray {
-        val totalSamples = entries.sumOf { it.samples.size }
-        if (totalSamples == 0) return FloatArray(0)
+    private fun findImpulseChunkIndex(chunks: List<AudioBufferEntry>): Int {
+        val maxSearchSamples = AudioTelemetry.SAMPLE_RATE_HZ * IMPULSE_SEARCH_SEC
+        var samplesSeen = 0
+        var bestChunk = 0
+        var bestEnergy = 0.0
 
-        val output = FloatArray(totalSamples)
-        var offset = 0
-        entries.forEach { entry ->
-            entry.samples.forEach { sample ->
-                output[offset++] = sample / 32768f
+        for (index in chunks.indices) {
+            if (samplesSeen >= maxSearchSamples) break
+            val energy = chunks[index].samples.sumOf { sample ->
+                val normalized = sample / 32768.0
+                normalized * normalized
             }
+            if (energy > bestEnergy) {
+                bestEnergy = energy
+                bestChunk = index
+            }
+            samplesSeen += chunks[index].samples.size
         }
-        return output
+        return bestChunk
     }
 
-    private fun findImpulseIndex(signal: FloatArray, searchLimit: Int): Int {
-        var maxIndex = 0
-        var maxValue = 0f
-        for (i in 0 until searchLimit) {
-            val value = abs(signal[i])
-            if (value > maxValue) {
-                maxValue = value
-                maxIndex = i
+    private fun extractDecaySegment(chunks: List<AudioBufferEntry>, startChunkIndex: Int): FloatArray {
+        val maxSamples = AudioTelemetry.SAMPLE_RATE_HZ * DECAY_ANALYSIS_SEC
+        val output = FloatArray(maxSamples)
+        var written = 0
+        var chunkIndex = startChunkIndex
+
+        while (chunkIndex < chunks.size && written < maxSamples) {
+            val chunk = chunks[chunkIndex]
+            for (sample in chunk.samples) {
+                if (written >= maxSamples) break
+                output[written++] = sample / 32768f
             }
+            chunkIndex++
         }
-        return maxIndex
+
+        return if (written == maxSamples) output else output.copyOf(written)
     }
 
     private fun schroederEdc(signal: FloatArray, startIndex: Int): FloatArray {

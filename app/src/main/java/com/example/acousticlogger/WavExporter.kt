@@ -1,5 +1,6 @@
 package com.example.acousticlogger
 
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -12,12 +13,13 @@ object WavExporter {
         val totalSamples = sortedChunks.sumOf { it.samples.size }
         val dataBytes = totalSamples * 2
 
-        FileOutputStream(wavFile).use { output ->
+        BufferedOutputStream(FileOutputStream(wavFile)).use { output ->
             output.write(buildWavHeader(dataBytes, AudioTelemetry.SAMPLE_RATE_HZ))
             sortedChunks.forEach { chunk ->
-                val buffer = ByteBuffer.allocate(chunk.samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-                chunk.samples.forEach { sample -> buffer.putShort(sample) }
-                output.write(buffer.array())
+                val bytes = ByteBuffer.allocate(chunk.samples.size * Short.SIZE_BYTES)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                chunk.samples.forEach { sample -> bytes.putShort(sample) }
+                output.write(bytes.array())
             }
         }
     }

@@ -64,7 +64,7 @@ class CoreController(
             return@withContext Result.failure(IllegalStateException("Brak aktywnej sesji"))
         }
 
-        runCatching {
+        try {
             reportProgress("Zatrzymywanie sensorów…")
             coroutineScope {
                 val audioStop = async(Dispatchers.Default) { audioTelemetry.stop() }
@@ -80,11 +80,9 @@ class CoreController(
             val imuData = imuTelemetry.drainBuffer()
             val cameraFrames = cameraTelemetry.drainBuffer()
 
-            reportProgress("Budowa modelu 3D… (~5–15 s)")
+            reportProgress("Analiza akustyczna…")
             val roomModel = RoomModelBuilder.build(cameraFrames)
             val materials = MaterialAbsorptionEstimator.estimate(cameraFrames)
-
-            reportProgress("Analiza akustyczna…")
             val acousticReport = AcousticAnalyzer.analyze(audioData, roomModel.volumeM3)
 
             reportProgress("Zapis plików…")
@@ -96,7 +94,15 @@ class CoreController(
             writeAcousticReport(sessionDir, roomModel, materials, acousticReport)
 
             val results = buildSessionResults(sessionDir, roomModel, materials, acousticReport)
-            SessionExportResult(sessionDir = sessionDir, results = results)
+            Result.success(SessionExportResult(sessionDir = sessionDir, results = results))
+        } catch (t: Throwable) {
+            recording.set(false)
+            Result.failure(
+                IllegalStateException(
+                    t.message ?: "Przetwarzanie sesji nie powiodło się",
+                    t,
+                ),
+            )
         }
     }
 

@@ -29,6 +29,7 @@ class CameraTelemetry(
         private const val GRID_WIDTH = 24
         private const val GRID_HEIGHT = 18
         private const val FRAME_INTERVAL_MS = 250L
+        private const val MAX_FRAME_COUNT = 120
     }
 
     private val buffer = Collections.synchronizedList(mutableListOf<CameraFrameEntry>())
@@ -78,6 +79,9 @@ class CameraTelemetry(
                         cells = cells,
                     ),
                 )
+                while (buffer.size > MAX_FRAME_COUNT) {
+                    buffer.removeAt(0)
+                }
             }
             image.close()
         }
