@@ -1,11 +1,15 @@
 <resources>
     <string name="app_name">AcousticLogger</string>
     <string name="app_title">Skan akustyczny pomieszczenia</string>
-    <string name="scan_hint">Po START aplikacja sama odtworzy sygnał z głośnika (~1,5 s). Skanuj ok. 20–30 s, potem STOP. Nie zamykaj aplikacji podczas przetwarzania.</string>
+    <string name="scan_hint">START uruchamia skan %1$d s. Aplikacja 3× odtworzy sygnał testowy (s, %2$s). Obracaj telefon powoli — wykres pokazuje rejestrowane częstotliwości.</string>
+    <string name="scan_impulse_times">2 s, 12 s, 22 s</string>
     <string name="action_start">START</string>
     <string name="action_stop">STOP</string>
     <string name="status_idle">Gotowy do skanowania pomieszczenia</string>
-    <string name="status_recording">Skanowanie… sygnał akustyczny za chwilę z głośnika</string>
+    <string name="status_recording">Skanowanie w toku — obserwuj odliczanie</string>
+    <string name="status_scan_complete">Skan zakończony — przetwarzanie wyników…</string>
+    <string name="countdown_format">Pozostało: %1$s / %2$d s</string>
+    <string name="spectrum_title">Widmo na żywo (Hz)</string>
     <string name="status_saving">Przetwarzanie — nie zamykaj aplikacji (5–20 s)…</string>
     <string name="status_saved">Zapisano sesję pomiarową</string>
     <string name="status_error">Błąd: %1$s</string>

@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -21,15 +22,19 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var coreController: CoreController
     private lateinit var statusText: TextView
+    private lateinit var countdownText: TextView
+    private lateinit var spectrumView: FrequencySpectrumView
     private lateinit var startButton: MaterialButton
     private lateinit var stopButton: MaterialButton
 
     private var permissionsGranted = false
+    private var isStopping = false
 
     private val runtimePermissions: Array<String>
         get() = buildList {
@@ -77,12 +82,36 @@ class MainActivity : AppCompatActivity() {
         }
 
         val previewView = findViewById<PreviewView>(R.id.cameraPreview)
-        coreController = CoreController(this, this, previewView) { message ->
-            runOnUiThread { updateStatus(message) }
-        }
+        spectrumView = findViewById(R.id.spectrumView)
+        countdownText = findViewById(R.id.countdownText)
+        coreController = CoreController(
+            context = this,
+            lifecycleOwner = this,
+            previewView = previewView,
+            onProgress = { message -> runOnUiThread { updateStatus(message) } },
+            onCountdown = { remaining, total ->
+                runOnUiThread { updateCountdown(remaining, total) }
+            },
+            onSpectrumUpdate = { bands ->
+                runOnUiThread { spectrumView.setBandValues(bands) }
+            },
+            onScanComplete = {
+                runOnUiThread {
+                    if (coreController.isRecording && !isStopping) {
+                        updateStatus(getString(R.string.status_scan_complete))
+                        onStopClicked()
+                    }
+                }
+            },
+        )
         statusText = findViewById(R.id.statusText)
         startButton = findViewById(R.id.startButton)
         stopButton = findViewById(R.id.stopButton)
+        findViewById<TextView>(R.id.hintText).text = getString(
+            R.string.scan_hint,
+            ScanConfig.SCAN_DURATION_SEC,
+            getString(R.string.scan_impulse_times),
+        )
 
         startButton.setOnClickListener { onStartClicked() }
         stopButton.setOnClickListener { onStopClicked() }
@@ -176,8 +205,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         permissionsGranted = true
+        isStopping = false
         startButton.isEnabled = false
         stopButton.isEnabled = false
+        spectrumView.reset()
+        showCountdown(true)
+        updateCountdown(ScanConfig.SCAN_DURATION_SEC, ScanConfig.SCAN_DURATION_SEC)
         updateStatus(getString(R.string.status_recording))
 
         lifecycleScope.launch {
@@ -188,6 +221,7 @@ class MainActivity : AppCompatActivity() {
                     updateStatus(getString(R.string.status_recording))
                 }
                 .onFailure { error ->
+                    showCountdown(false)
                     startButton.isEnabled = true
                     stopButton.isEnabled = false
                     updateStatus(getString(R.string.status_error, error.message ?: "unknown"))
@@ -196,23 +230,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onStopClicked() {
+        if (isStopping) return
+        isStopping = true
         startButton.isEnabled = false
         stopButton.isEnabled = false
+        showCountdown(false)
         updateStatus(getString(R.string.status_saving))
 
         lifecycleScope.launch {
             coreController.stopRecordingAndExport()
                 .onSuccess { result ->
+                    isStopping = false
                     startButton.isEnabled = true
                     stopButton.isEnabled = false
+                    spectrumView.reset()
                     updateStatus(getString(R.string.status_saved))
                     runOnUiThread {
                         startActivity(ResultsActivity.createIntent(this@MainActivity, result.results))
                     }
                 }
                 .onFailure { error ->
+                    isStopping = false
                     startButton.isEnabled = true
                     stopButton.isEnabled = false
+                    spectrumView.reset()
                     updateStatus(getString(R.string.status_error, error.message ?: "unknown"))
                 }
         }
@@ -220,5 +261,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus(message: String) {
         statusText.text = message
+    }
+
+    private fun updateCountdown(remainingSec: Int, totalSec: Int) {
+        val minutes = remainingSec / 60
+        val seconds = remainingSec % 60
+        countdownText.text = getString(
+            R.string.countdown_format,
+            String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds),
+            totalSec,
+        )
+    }
+
+    private fun showCountdown(visible: Boolean) {
+        countdownText.visibility = if (visible) View.VISIBLE else View.GONE
     }
 }

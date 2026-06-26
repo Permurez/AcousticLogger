@@ -6,9 +6,12 @@ import androidx.camera.view.PreviewView
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -24,6 +27,9 @@ class CoreController(
     lifecycleOwner: LifecycleOwner,
     previewView: PreviewView,
     private val onProgress: (String) -> Unit = {},
+    private val onCountdown: (remainingSec: Int, totalSec: Int) -> Unit = { _, _ -> },
+    private val onSpectrumUpdate: (FloatArray) -> Unit = {},
+    private val onScanComplete: () -> Unit = {},
 ) {
 
     private val appContext = context.applicationContext
@@ -33,6 +39,8 @@ class CoreController(
     private val audioTelemetry = AudioTelemetry(appContext)
     private val cameraTelemetry = CameraTelemetry(appContext, lifecycleOwner, previewView, imuTelemetry)
     private val recording = AtomicBoolean(false)
+    private var impulseJob: Job? = null
+    private var countdownJob: Job? = null
 
     val isRecording: Boolean
         get() = recording.get()
@@ -44,15 +52,48 @@ class CoreController(
 
         coroutineScope {
             val imuStart = async(Dispatchers.Default) { imuTelemetry.start(scope) }
-            val audioStart = async(Dispatchers.Default) { audioTelemetry.start(scope) }
+            val audioStart = async(Dispatchers.Default) {
+                audioTelemetry.start(scope) { bands -> onSpectrumUpdate(bands) }
+            }
             val cameraStart = async(Dispatchers.Main) { cameraTelemetry.start(scope) }
-            val impulseStart = async(Dispatchers.IO) { AcousticImpulsePlayer.playImpulse(appContext) }
             imuStart.await()
             audioStart.await()
             cameraStart.await()
-            impulseStart.await()
         }
         recording.set(true)
+        startScanSessionJobs()
+    }
+
+    private fun startScanSessionJobs() {
+        impulseJob = scope.launch(Dispatchers.IO) {
+            AcousticImpulsePlayer.playScheduledImpulses(
+                context = appContext,
+                delaysSec = ScanConfig.IMPULSE_AT_SEC,
+                isActive = { recording.get() },
+                onImpulsePlayed = { index, total ->
+                    reportProgress("Sygnał akustyczny $index/$total")
+                },
+            )
+        }
+
+        countdownJob = scope.launch {
+            for (remaining in ScanConfig.SCAN_DURATION_SEC downTo 0) {
+                if (!recording.get()) return@launch
+                onCountdown(remaining, ScanConfig.SCAN_DURATION_SEC)
+                if (remaining == 0) break
+                delay(1000)
+            }
+            if (recording.get()) {
+                onScanComplete()
+            }
+        }
+    }
+
+    private fun cancelScanSessionJobs() {
+        impulseJob?.cancel()
+        countdownJob?.cancel()
+        impulseJob = null
+        countdownJob = null
     }
 
     private fun reportProgress(message: String) {
@@ -65,6 +106,7 @@ class CoreController(
         }
 
         try {
+            cancelScanSessionJobs()
             reportProgress("Zatrzymywanie sensorów…")
             coroutineScope {
                 val audioStop = async(Dispatchers.Default) { audioTelemetry.stop() }
@@ -121,6 +163,7 @@ class CoreController(
     }
 
     fun release() {
+        cancelScanSessionJobs()
         if (recording.get()) {
             audioTelemetry.stop()
             imuTelemetry.stop()

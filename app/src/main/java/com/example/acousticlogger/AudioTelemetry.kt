@@ -22,6 +22,7 @@ class AudioTelemetry(private val context: Context) {
         private const val READ_SAMPLES = 1024
         private const val MAX_BUFFER_SECONDS = 60
         private val MAX_BUFFER_CHUNKS = (MAX_BUFFER_SECONDS * SAMPLE_RATE_HZ / READ_SAMPLES) + 1
+        private const val SPECTRUM_EMIT_INTERVAL_NS = 100_000_000L
     }
 
     private val buffer = Collections.synchronizedList(mutableListOf<AudioBufferEntry>())
@@ -29,11 +30,12 @@ class AudioTelemetry(private val context: Context) {
     private val paused = AtomicBoolean(false)
     private var audioRecord: AudioRecord? = null
     private var captureJob: Job? = null
+    private var lastSpectrumEmitNs = 0L
 
     val isRunning: Boolean
         get() = running.get()
 
-    fun start(scope: CoroutineScope) {
+    fun start(scope: CoroutineScope, onLiveSpectrum: ((FloatArray) -> Unit)? = null) {
         if (running.getAndSet(true)) return
 
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -71,9 +73,22 @@ class AudioTelemetry(private val context: Context) {
                     val samples = readBuffer.copyOf(readCount)
                     buffer.add(AudioBufferEntry(timestampNs, samples))
                     trimBufferIfNeeded()
+                    emitLiveSpectrum(readBuffer, readCount, onLiveSpectrum)
                 }
             }
         }
+    }
+
+    private fun emitLiveSpectrum(
+        readBuffer: ShortArray,
+        readCount: Int,
+        onLiveSpectrum: ((FloatArray) -> Unit)?,
+    ) {
+        if (onLiveSpectrum == null) return
+        val now = System.nanoTime()
+        if (now - lastSpectrumEmitNs < SPECTRUM_EMIT_INTERVAL_NS) return
+        lastSpectrumEmitNs = now
+        onLiveSpectrum(LiveFrequencyAnalyzer.analyze(readBuffer, readCount))
     }
 
     private fun trimBufferIfNeeded() {
