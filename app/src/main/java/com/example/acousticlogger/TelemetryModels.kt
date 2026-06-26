@@ -88,7 +88,22 @@ data class AcousticReport(
     val edcDropDb: Double,
 )
 
+data class SessionResults(
+    val sessionDirPath: String,
+    val roomWidthM: Float,
+    val roomHeightM: Float,
+    val roomDepthM: Float,
+    val roomVolumeM3: Float,
+    val pointCount: Int,
+    val rt60BroadbandSec: Double,
+    val sabineAverageAbsorption: Double,
+    val edcDropDb: Double,
+    val topMaterialLabel: String,
+    val materialsSummary: String,
+    val exportFilesSummary: String,
+) : java.io.Serializable
+
 data class SessionExportResult(
     val sessionDir: java.io.File,
-    val summary: String,
+    val results: SessionResults,
 )

@@ -7,10 +7,24 @@
     <string name="status_idle">Gotowy do skanowania pomieszczenia</string>
     <string name="status_recording">Skanowanie: kamera + audio + orientacja…</string>
     <string name="status_saving">Budowa modelu 3D i analiza akustyczna…</string>
-    <string name="status_saved">%1$s</string>
+    <string name="status_saved">Zapisano sesję pomiarową</string>
     <string name="status_error">Błąd: %1$s</string>
     <string name="status_permissions_required">Wymagane uprawnienia aplikacji</string>
     <string name="status_permissions_granted">Uprawnienia przyznane — możesz rozpocząć skan</string>
     <string name="permission_rationale">Aplikacja wymaga mikrofonu, kamery i pamięci, aby zbudować model 3D pomieszczenia i zmierzyć jego właściwości akustyczne.</string>
     <string name="manage_storage_rationale">Aby zapisać model 3D i raport akustyczny w folderze Pobrane, przyznaj dostęp do wszystkich plików.</string>
+
+    <string name="results_title">Wyniki skanowania</string>
+    <string name="results_section_room">Model pomieszczenia</string>
+    <string name="results_section_acoustic">Analiza akustyczna</string>
+    <string name="results_section_materials">Materiały (szacunek)</string>
+    <string name="results_section_files">Wyeksportowane pliki</string>
+    <string name="results_section_path">Folder sesji</string>
+    <string name="results_room_format">Wymiary: %1$.1f × %2$.1f × %3$.1f m\nObjętość: %4$.1f m³\nPunkty chmury 3D: %5$d</string>
+    <string name="results_acoustic_format">RT60 (broadband): %1$.2f s\nŚrednie pochłanianie (Sabine): %2$.3f\nSpadek energii (EDC): %3$.1f dB</string>
+    <string name="results_materials_format">Dominujący materiał: %1$s\n\n%2$s</string>
+    <string name="results_copy_path">Kopiuj ścieżkę folderu</string>
+    <string name="results_new_scan">Nowy skan</string>
+    <string name="results_path_copied">Ścieżka skopiowana do schowka</string>
+    <string name="results_missing_data">Brak danych wyników sesji</string>
 </resources>

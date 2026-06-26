@@ -77,14 +77,14 @@ class CoreController(
             val acousticReport = AcousticAnalyzer.analyze(audioData, roomModel.volumeM3)
 
             val sessionDir = createSessionDirectory()
-            writeRawTelemetry(sessionDir, audioData, imuData, cameraFrames)
+            WavExporter.export(audioData, File(sessionDir, "recording.wav"))
+            WavExporter.exportChunkIndex(audioData, File(sessionDir, "audio_chunks.csv"))
+            writeRawTelemetry(sessionDir, imuData, cameraFrames)
             RoomModelBuilder.exportPly(roomModel, File(sessionDir, "room_model.ply"))
             writeAcousticReport(sessionDir, roomModel, materials, acousticReport)
 
-            SessionExportResult(
-                sessionDir = sessionDir,
-                summary = buildSummary(sessionDir, roomModel, materials, acousticReport),
-            )
+            val results = buildSessionResults(sessionDir, roomModel, materials, acousticReport)
+            SessionExportResult(sessionDir = sessionDir, results = results)
         }
     }
 
@@ -123,13 +123,13 @@ class CoreController(
 
     private fun writeRawTelemetry(
         sessionDir: File,
-        audioData: List<AudioBufferEntry>,
         imuData: List<ImuEntry>,
         cameraFrames: List<CameraFrameEntry>,
     ) {
         File(sessionDir, "raw_telemetry.csv").bufferedWriter().use { writer ->
             writer.appendLine("# AcousticLogger raw telemetry")
-            writer.appendLine("# audio_sample_rate_hz=${AudioTelemetry.SAMPLE_RATE_HZ}")
+            writer.appendLine("# audio_pcm=recording.wav (${AudioTelemetry.SAMPLE_RATE_HZ} Hz, mono, 16-bit)")
+            writer.appendLine("# audio_chunk_timestamps=audio_chunks.csv")
             writer.appendLine()
 
             writer.appendLine("# SECTION:IMU")
@@ -145,15 +145,6 @@ class CoreController(
                 writer.appendLine(
                     "${frame.timestampNs},$index,${frame.gridWidth},${frame.gridHeight},${frame.cells.size}",
                 )
-            }
-
-            writer.appendLine()
-            writer.appendLine("# SECTION:AUDIO_PCM")
-            writer.appendLine("timestamp_ns,sample_index,sample_value")
-            audioData.sortedBy { it.timestampNs }.forEach { entry ->
-                entry.samples.forEachIndexed { index, sample ->
-                    writer.appendLine("${entry.timestampNs},$index,$sample")
-                }
             }
         }
     }
@@ -173,6 +164,8 @@ class CoreController(
             put("rt60_broadband_sec", acousticReport.rt60BroadbandSec)
             put("sabine_average_absorption", acousticReport.sabineAverageAbsorption)
             put("edc_drop_db", acousticReport.edcDropDb)
+            put("audio_file", "recording.wav")
+            put("audio_sample_rate_hz", AudioTelemetry.SAMPLE_RATE_HZ)
 
             put(
                 "rt60_by_band_hz",
@@ -216,24 +209,41 @@ class CoreController(
         File(sessionDir, "acoustic_report.json").writeText(json.toString(2))
     }
 
-    private fun buildSummary(
+    private fun buildSessionResults(
         sessionDir: File,
         roomModel: RoomModel,
         materials: List<MaterialEstimate>,
         acousticReport: AcousticReport,
-    ): String {
+    ): SessionResults {
         val topMaterial = materials.firstOrNull()?.type?.label ?: "brak danych"
-        return buildString {
-            appendLine("Folder: ${sessionDir.absolutePath}")
-            appendLine("Model 3D: room_model.ply (${roomModel.points.size} punktów)")
-            appendLine(
-                "Wymiary ~ ${"%.1f".format(roomModel.widthM)} x " +
-                    "${"%.1f".format(roomModel.depthM)} x ${"%.1f".format(roomModel.heightM)} m",
-            )
-            appendLine("Objętość ~ ${"%.1f".format(roomModel.volumeM3)} m³")
-            appendLine("RT60 (broadband) ~ ${"%.2f".format(acousticReport.rt60BroadbandSec)} s")
-            appendLine("Dominujący materiał: $topMaterial")
-            append("Raport: acoustic_report.json")
+        val materialsSummary = if (materials.isEmpty()) {
+            "Brak danych o materiałach"
+        } else {
+            materials.joinToString(separator = "\n") { estimate ->
+                "• ${estimate.type.label}: ${"%.1f".format(estimate.sharePercent)}%"
+            }
         }
+        val exportFilesSummary = listOf(
+            "recording.wav",
+            "audio_chunks.csv",
+            "raw_telemetry.csv",
+            "room_model.ply",
+            "acoustic_report.json",
+        ).joinToString(separator = "\n") { "• $it" }
+
+        return SessionResults(
+            sessionDirPath = sessionDir.absolutePath,
+            roomWidthM = roomModel.widthM,
+            roomHeightM = roomModel.heightM,
+            roomDepthM = roomModel.depthM,
+            roomVolumeM3 = roomModel.volumeM3,
+            pointCount = roomModel.points.size,
+            rt60BroadbandSec = acousticReport.rt60BroadbandSec,
+            sabineAverageAbsorption = acousticReport.sabineAverageAbsorption,
+            edcDropDb = acousticReport.edcDropDb,
+            topMaterialLabel = topMaterial,
+            materialsSummary = materialsSummary,
+            exportFilesSummary = exportFilesSummary,
+        )
     }
 }
